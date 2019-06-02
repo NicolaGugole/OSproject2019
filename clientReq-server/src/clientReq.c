@@ -15,6 +15,7 @@
 char clientFIFO[50]  = "clientFIFO";
 char *serverFIFO = "serverFIFO";
 struct Request request;
+struct Response response;
 
 int main (int argc, char *argv[]) {
     printf("Hi, I'm ClientReq program!\n");
@@ -30,17 +31,13 @@ int main (int argc, char *argv[]) {
 
     //2 - create the clientFIFO before sending data to serverFIFO
     //every client has his own FIFO. For convenience i decided to concat clientFIFO with the process' pid
-    printf("ciao?");
     pid_t myPid = getpid(); //get the PID
     char needForStringPid[10]; //create the string needed for strcat
-    printf("ciao %d", myPid);
     sprintf(needForStringPid, "%d", myPid); //fill needForStringPid
-    printf("ciao2 %s", needForStringPid);
     strcat(clientFIFO, needForStringPid); //concat and save into clientFIFO
 
     strcpy(request.clientFIFOpath,clientFIFO); //this will be useful for the server to know where is the clientFIFO
 
-    printf("\n\nprovaprova %s\n\n", request.clientFIFOpath);
 
 
     if(mkfifo(clientFIFO, S_IWUSR | S_IRUSR) == -1)
@@ -52,7 +49,7 @@ int main (int argc, char *argv[]) {
     if(server == -1)
       errExit("openServerFIFO by client fail");
 
-    if(write(server, &request, sizeof(request)) == -1)
+    if(write(server, &request, sizeof(struct Request)) == -1)
       errExit("writeOnServerFIFO fail");
 
 
@@ -62,15 +59,23 @@ int main (int argc, char *argv[]) {
     if(myFIFO == -1)
       errExit("openClientFIFO by client fail");
 
-    char result[100];//DA CANCELLARE
 
-    if(read(myFIFO, &result, sizeof(result)) == -1)//DA CANCELLARE
-      errExit("readfromClientFIFO fail");//DA CANCELLARE
-
-    printf("\nRisultato: %s\n", result); //DA CANCELLARE
+    if(read(myFIFO, &response, sizeof(struct Response)) == -1)
+      errExit("readfromClientFIFO fail");
 
 
     //5 - output the key to the user
+
+    //5.1 - check if there was a bad formulation in the service's Request
+    if(response.passCode == -1) //service was not well formulated
+      printf("\nThe service you requested is not in our offer, you can choose between:\n-Salva\n-Stampa\n-Invia\n\nYou typed: %s\nYou unfortunately might want to try again.\n\n", request.service);
+    else if(response.passCode == -2)
+      printf("\nYou might want to try again in 5 minutes or less.\n");
+    else{//service was formulated correctly
+      printf("\n**************************************************************\n");
+      printf("\nThis is the code for the service %s you requested: %ld\n", request.service, response.passCode);
+      printf("\n**************************************************************\n");
+    }
     //6 - remove clientFIFO before ending, close client's side of the server
 
     close(server);

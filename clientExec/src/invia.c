@@ -11,22 +11,22 @@ int main (int argc, char *argv[]) {
     printf("Hi, I'm Invia program!\n");
 
     //check if there are enough args ( > 1)
-    if(argc < 2)
+    if(argc < 4)
       errExit("A valid messageQueue key is needed.");
     else{
-      int msgqkey = atoi(argv[1]);
-      int msqid = msgget(msgqkey, O_TRUNC | S_IWUSR | S_IRUSR); //get access to the msgqueue
+      int msgqkey = atoi(argv[3]);
+      int msqid = msgget(msgqkey, S_IWUSR | S_IRUSR); //get access to the msgqueue
       if(msqid == -1) //check for errors
         errExit("msgget fail");
-      if(argc == 2) //check if there is something to write
+      if(argc == 4) //check if there is something to write
         printf("There's nothing to write on the message queue\n");
       else{ //group all the argvs in one single string
         int iterator;
         int totalSize = 0;
-        for(iterator = 2; iterator < argc; iterator++) //collect the total size of the final string + the spaces between the arguments
+        for(iterator = 5; iterator < argc; iterator++) //collect the total size of the final string + the spaces between the arguments
           totalSize += strlen(argv[iterator]) + 1;
         char totalString[++totalSize]; //allocate the total size into one string
-        for(iterator = 2; iterator < argc; iterator++){ //create the string comprehensive of every argv
+        for(iterator = 5; iterator < argc; iterator++){ //create the string comprehensive of every argv
           strcat(totalString, argv[iterator]);
           strcat(totalString, " ");
         }
@@ -36,14 +36,11 @@ int main (int argc, char *argv[]) {
         if(msgsnd(msqid, totalString, totalSize, IPC_NOWAIT) == -1) //send the total string on the messageQueue
           errExit("msgsnd fail");
 
-        /*char newString[totalSize];
+        /*char newString[totalSize]; //to test the message retrieval
         if(msgrcv(msqid, newString, totalSize, 0, 0) == -1)
           errExit("msgrcv fail");
 
-        printf("\nProva    %s\n", newString);*/
-
-
-
+        printf("\nStringa letta da msgqueue  %s\n", newString);*/
       }
     }
     return 0;
