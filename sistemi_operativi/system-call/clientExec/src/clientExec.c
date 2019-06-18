@@ -17,17 +17,17 @@
 
 //#################################################################################################
 //get the string from the passCode
-unsigned long long int hashToString(char *string){
-  int i, a = 0; //i is iterator, a counter needed to navigate through final string
-  char service[6]; //where to place the string from the passCode
-  for(i = 0; string[i] != '\0'; i++, a++){//go through passCode, decode it
-    if(string[i] == '1'){ //means its a character over 100 so write using the string's next 3 chars
+int hashToString(char *string){
+  int i, a = 0;
+  char service[6];
+  for(i = 0; string[i] != '\0'; i++, a++){
+    if(string[i] == '1'){
       service[a] = (char)((string[i] - 48) * 100 + (string[i + 1]- 48) * 10 + (string[i + 2]- 48));
-      i += 2; //go to next char to decode
+      i += 2;
     }
-    else{ //means its a character under 100 so write in service usinge the string's next 2 chars
+    else{
       service[a] = (char)((string[i] - 48) * 10 + (string[i + 1] - 48));
-      i++; //go to next char to decode
+      i++;
     }
   }
   //return code needed for the next switch
@@ -38,15 +38,15 @@ unsigned long long int hashToString(char *string){
 }
 
 //decrypt function
-unsigned long long int deHashThis(unsigned long long int key, long int timing){
-  key /= 3898; //decrypt doing the crypting actions backwards
+int deHashThis(unsigned long long int key, long int timing){
+  key /= 3898;
   key -= timing;
 
-  char serviceLong[20]; //where to save the passCode as a string
+  char serviceLong[20];
 
   sprintf(serviceLong, "%llu", key);
 
-  return hashToString(serviceLong); //recognize the service asked by user
+  return hashToString(serviceLong);
 }
 
 //#################################################################################################
@@ -62,22 +62,22 @@ void toLowerCase(char *someString){
 }
 
 
-//function which swaps last element in the sharedMemory with the one i'm pointing at, then decreases the number of entries effectively deleting the initial entry
+//swap last with current
 void swap(int i){
   printf("\nSweeping out obsolete stuff..\n");
-  message[i] = message[*(entries) - 1]; //swap last with current
+  message[i] = message[*(entries) - 1];
 }
 
 //function that goes through the shMem searching for the userCode and userKey
 long int search_entry(char *userCode, long int userKey){
-  int i; //iterator
-  long needForDecrypt = 0; //this will copy the service (encrypted) if the entry given by user corresponds in the shMem
+  int i;
+  long needForDecrypt = 0;
   for(i = 0; i < *entries; i++){
     if(message[i].userKey == userKey){ //found a match, check if the userCode corresponds
-      if(strcmp(message[i].userCode, userCode) == 0){ //fully matching, take what needed for decrypting, delete entry
+      if(strcmp(message[i].userCode, userCode) == 0){
         needForDecrypt = message[i].timeStamp;
-        swap(i); //put the matching entry to the end of the shMem
-        (*entries)--; //now there is one less entry
+        swap(i);
+        (*entries)--; 
         break; //no need for the search to continue
       }
       else{ //userKey correct, userCode not matching, ERROR [code 1] or if already found a userCode in precedent iteration [code 2]. If true then this is another type of error [code 3]
@@ -95,48 +95,50 @@ long int search_entry(char *userCode, long int userKey){
 int main (int argc, char *argv[]) {
     printf("Starting ClientExec..\n");
 
-    if(argc < 3){ //not enough argvs
+    if(argc < 3){
       printf("\nERROR: not enough arguments. Please input in this format:\n ./clientExec userName userKey nOthers\n");
-      exit(0);
+      exit(1);
     }
-    //open the semaphore which regulates access to sharedMemory
+
     semid = semget(SEMKEY, 1, S_IRUSR | S_IWUSR);
     if(semid == -1)
       errExit("semget by clientExec failed");
 
-    //open and attach this process to the main sharedMemory
+
     shmid = shmget(SHMKEY, SHMSIZE * sizeof(struct Message), S_IRUSR | S_IWUSR);
     if(shmid == -1)
       errExit("shmget by clientExec fail");
+
     message = (struct Message*) get_shared_memory(shmid, 0);
 
-    //apri aux_shm giusta
+
     aux_shmid = shmget(AUX_SHMKEY, sizeof(int), S_IRUSR | S_IWUSR);
     if(aux_shmid == -1)
       errExit("auxiliary shmget by clientExec fail");
+
     entries = (int*) get_shared_memory(aux_shmid, 0);
 
     //read arguments sent by user
-    char *userCode = argv[1]; //as this process formatted input wants
-    toLowerCase(userCode); //in the shMem the userCodes are all in lower case
-    unsigned long long int userKey = atol(argv[2]); //as this process formatted input wants
+    char *userCode = argv[1];
+    toLowerCase(userCode);
+    unsigned long long int userKey = atol(argv[2]);
 
 
 
     semOp(semid, 0, -1);
-    long int timing = search_entry(userCode, userKey); //get the decryption material or the error code from reading the shMem
+    long int timing = search_entry(userCode, userKey);
     semOp(semid, 0, 1);
 
 
 
 
-    free_shared_memory(message); //detach from main shMem
+    free_shared_memory(message);
 
-    free_shared_memory(entries); //detach from auxiliary shMem
+    free_shared_memory(entries);
 
     if(timing > 0) timing = deHashThis(userKey, timing); //if NOT an error then decrypt
 
-    switch(timing){ //dependently on result give service
+    switch(timing){
       case 0:
         printf("\nERROR: USER NOT matching in shMem, KEY NOT matching in shMem.\n");
         break;

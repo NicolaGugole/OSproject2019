@@ -31,20 +31,20 @@ pid_t keyManager = -1; //variable which contains server's child PID
 //string to int
 void stringToHash(char *string, char serviceInt[]){
   int i;
-  char temp[3]; //char value is between 0 and 255, so i need 3 chars
-  for(i = 0; string[i] != '\0'; i++){ //iterate over each character
-    sprintf(temp, "%d", string[i]); //put each character (casted to int) in temp
-    serviceInt = strcat(serviceInt, temp); //effectively create the string containing the initial string as a concatenation of its chars' integer values
+  char temp[3];
+  for(i = 0; string[i] != '\0'; i++){
+    sprintf(temp, "%d", string[i]);
+    serviceInt = strcat(serviceInt, temp);
   }
 }
 
 
 //function to create the passCode
 unsigned long long int hashIt(char *service, time_t timed){
-  char serviceInt[18] = ""; //array where the ascii value of each character in service will be saved
-  stringToHash(service, serviceInt); //transform each char in its int value
+  char serviceInt[18] = "";
+  stringToHash(service, serviceInt);
 
-  return ((atol(serviceInt) + timed) * 3898); //creating passCode using serviceInt
+  return ((atol(serviceInt) + timed) * 3898);
 }
 
 //#################################################################################################
@@ -69,30 +69,30 @@ void serverSigHandler(int sig){//function to end the server process when SIGTERM
     exit(0);
   }
 
-  //close the FIFO fake side
+  printf("\n\n--------------LET'S WRAP THIS UP--------------\n\n");
+
+  //close the fake FIFO side
   close(fakeWriting);
 
   //process is terminating, delete the FIFO before leaving
   printf("\nUnlinking serverFIFO...");
   unlink(serverFIFO);
   //send SIGTERM to your child, wait for its termination
-  if(keyManager != -1){ //if == -1 means server started and ended before any clientRequest, so keyManager not initialized, neither sharedMemory nor semaphore (open only for reading, missing open for writing)
-    //killing keyManager
+  if(keyManager != -1){ //if keyManager initialized
+
     if(kill(keyManager, SIGTERM) == -1)
       errExit("killing keyManager failed");
-    //wait for your child to end
+
     while(wait(NULL) != -1);
-    //detach and delete the sharedMemory segment
+
     printf("\nRemoving shared memory...");
     free_shared_memory(message);
     remove_shared_memory(shmid);
 
-    //detach and delete the auxiliarySharedMemory segment
     printf("\nRemoving auxiliary shared memory...");
     free_shared_memory(entries);
     remove_shared_memory(aux_shmid);
 
-    //delete the semaphore
     printf("\nDeleting semaphore...");
     if(semctl(semid, 0, IPC_RMID, 0) == -1)
       errExit("Semaphore removal fail");
@@ -106,10 +106,9 @@ void serverSigHandler(int sig){//function to end the server process when SIGTERM
 
 
 void create_semaphore(){//setup the semaphore to regulate access to the sharedMemory segment
-  semid = semget(SEMKEY, 1, IPC_CREAT | S_IRUSR | S_IWUSR); //create the semaphore
+  semid = semget(SEMKEY, 1, IPC_CREAT | S_IRUSR | S_IWUSR);
   if(semid == -1)
     errExit("semget by server failed");
-  //set the semaphore to 1
   union semun arg;
   unsigned short value[] = {1};
   arg.array = value;
@@ -127,31 +126,32 @@ void create_auxiliary_shared_memory(){
 
 
 
-//function which swaps last element in the sharedMemory with the one i'm pointing at, then decreases the number of entries effectively deleting the initial entry
+//swap last with current
 void swap(int i){
   printf("\nSweeping out old stuff..\n");
-  message[i] = message[*(entries) - 1]; //swap last with current
+  message[i] = message[*(entries) - 1];
 }
 
 
 
-//control entries, if any of them is older than 5 minutes, delete it
+//check entries and delete them if needed
 void control_entries(){
   printf("\nCleaning the DB..\n");
-  int i = 0; //iterator
-  time_t thisTime = time(NULL); //setup time with which you'll compare the timestamps
+  int i = 0;
+  time_t thisTime = time(NULL);
 
-  while(i < *entries){//stampa delle entries
+  printf("\nShowing entries in the DB..\n");
+
+  while(i < *entries){
     printf("\n------------\nEntry n %d\n%s\n%llu\n%ld\nDurata di permanenza nella shMem: %ld\n-----------\n", i+1, message[i].userCode, message[i].userKey, message[i].timeStamp, thisTime - message[i].timeStamp);
-    if( thisTime - message[i].timeStamp >= FIVEMINS){ //more than 5 minutes in the shMem
-      //swap message[]'s last value in message[i], then decrease number of entries
+    if( thisTime - message[i].timeStamp >= FIVEMINS){
         swap(i);
-        i--; //control again this position: it has been swapped, so it has new values
-        (*entries)--; //now there is one less entry
+        i--;
+        (*entries)--;
     }
-    i++; //go to next message
+    i++;
   }
-  printf("\nNumber of entries: %d\n", *entries);
+  printf("\nNumber of entries left: %d\n", *entries);
 }
 
 
@@ -174,7 +174,7 @@ int main (int argc, char *argv[]) {
       errExit("mkfifoServer fail");
 
 
-    //2 - open the serverFIFO only to write
+    //2 - open the serverFIFO only to read
     server = open(serverFIFO, O_RDONLY);
     if(server == -1)
       errExit("openServerFIFO by server fail");
@@ -201,17 +201,16 @@ int main (int argc, char *argv[]) {
       errExit("Fork fail");
 
     //########################################################################################################################################################################
-    if(keyManager == 0){//child's code: keyManager
-      printf("\nStarting up keyManager!\n");
+    if(keyManager == 0){//child's code
       while(1){
-          sleep(30); //every 30 seconds wake up to check if there are keys older than 5 minutes (300 seconds)!
+          sleep(30);
 
-          semOp(semid, 0, -1); //get mutual access to the sharedMemory segment
+          semOp(semid, 0, -1);
 
           printf("\nSTAMPA COSA C'È NELLA SHMEM:\n");
-          control_entries(); //search if there is any entry to delete
+          control_entries();
 
-          semOp(semid, 0, 1); //give access to the sharedMemory segment
+          semOp(semid, 0, 1);
       }
     }
     //########################################################################################################################################################################
@@ -229,60 +228,58 @@ int main (int argc, char *argv[]) {
       printf("I am the server, I received the request for service: %s \nMade by: %s\nI am going to send to: %s\n", request.service, request.userCode, request.clientFIFOpath);
 
     //3.1 - check if the service is not a bad request
-
     int badRequest = 1;
 
-    //translate everything in lowercase
       toLowerCase(request.service);
 
       if(strcmp(request.service, "stampa") == 0){
-        printf("\nCrea chiave per STAMPA e salva in memcondivisa con tempo\n");
+        printf("\nCreating key for STAMPA, saving message in shMem\n");
       }
       else if(strcmp(request.service, "salva") == 0){
-        printf("\nCrea chiave per SALVA e salva in memcondivisa con tempo\n");
+        printf("\nCreating key for SALVA, saving message in shMem\n");
       }
       else if(strcmp(request.service, "invia") == 0){
-        printf("\nCrea chiave per INVIA e salva in memcondivisa con tempo\n");
+        printf("\nCreating key for INVIA, saving message in shMem\n");
       }
       else{
-        printf("\nChiave non riconosciuta: %s \n", request.service);
+        printf("\nService not recognized: %s \n", request.service);
         badRequest--;
-        response.passCode = -1; //to let the client recognize if the service was well formulated or not
+        response.passCode = -1;
       }
 
 
-      if(badRequest != 0){ //request was well formulated, create code for the client and save it in sharedMemory
+      if(badRequest != 0){ //request well formulated
       //3.2 - create the code for the client
         time_t timeStamp = time(NULL);
         response.passCode = hashIt(request.service, timeStamp);
 
 
       //3.3 - save everything on the sharedMemory
-        semOp(semid, 0, -1); //get mutual access to the sharedMemory segment
-        sleep(1); //delay
-        //insert data(userName, hashCode, timeStamp) (if there is enough space)
+        semOp(semid, 0, -1);
+        sleep(1);
+
         if(*entries == SHMSIZE){ //shmem is full
           printf("\nMemory is full, désolé!\n");
-          response.passCode = -2; //code to let the client recognize the memory is full
+          response.passCode = -2;
         }
         else{
           strcpy(message[*entries].userCode, request.userCode);
           message[*entries].userKey = response.passCode;
           message[*entries].timeStamp = timeStamp;
-          (*entries)++; //there's a new entry in the sharedMemory
+          (*entries)++;
         }
 
-        semOp(semid, 0, 1); //give back access to the sharedMemory segment
+        semOp(semid, 0, 1);
       }
 
     //4 - send the data back to the client
-      int client = open(request.clientFIFOpath, O_WRONLY); //connecting with the correct clientFIFO
+      int client = open(request.clientFIFOpath, O_WRONLY);
       if(client == -1)
         errExit("openclientFIFO by server fail");
 
-      if(write(client, &response, sizeof(struct Response)) == -1) //sending response
+      if(write(client, &response, sizeof(struct Response)) == -1)
         errExit("writeOnClientFIFO fail");
-      //each time the clientFIFO will be different, so close it at every iteration
+      
       close(client);
 
     }while(1);

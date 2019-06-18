@@ -26,13 +26,12 @@ int main (int argc, char *argv[]) {
     scanf("%s", request.service);
 
     //2 - create the clientFIFO before sending data to serverFIFO
-    //every client has his own FIFO. For convenience i decided to concat clientFIFO with the process' pid
-    pid_t myPid = getpid(); //get the PID
-    char needForStringPid[10]; //create the string needed for strcat
-    sprintf(needForStringPid, "%d", myPid); //fill needForStringPid
-    strcat(clientFIFO, needForStringPid); //concat and save into clientFIFO
+    pid_t myPid = getpid();
+    char needForStringPid[10];
+    sprintf(needForStringPid, "%d", myPid);
+    strcat(clientFIFO, needForStringPid);
 
-    strcpy(request.clientFIFOpath,clientFIFO); //this will be useful for the server to know where is the clientFIFO
+    strcpy(request.clientFIFOpath,clientFIFO);
 
 
 
@@ -42,8 +41,10 @@ int main (int argc, char *argv[]) {
     //3 - open and send data to server through serverFIFO
     int server = open(serverFIFO,O_WRONLY);
 
-    if(server == -1)
+    if(server == -1){
+      unlink(clientFIFO);
       errExit("openServerFIFO by client fail");
+    }
 
     if(write(server, &request, sizeof(struct Request)) == -1)
       errExit("writeOnServerFIFO fail");
@@ -59,21 +60,18 @@ int main (int argc, char *argv[]) {
     if(read(myFIFO, &response, sizeof(struct Response)) == -1)
       errExit("readfromClientFIFO fail");
 
-
-    //5 - output the key to the user
-
-    //5.1 - check if there was a bad formulation in the service's Request
+    //5 - check if there were any error in the service's Request, else show key to user
     if(response.passCode == -1) //service was not well formulated
       printf("\nThe service you requested is not in our offer, you can choose between:\n-Salva\n-Stampa\n-Invia\n\nYou typed: %s\nYou unfortunately might want to try again.\n\n", request.service);
-    else if(response.passCode == -2)
+    else if(response.passCode == -2) //DB is full
       printf("\nYou might want to try again in 5 minutes or less.\n");
-    else{//service was formulated correctly
+    else{
       printf("\n**************************************************************\n");
-      printf("\nThis is the code for the service %s you requested: %ld\n", request.service, response.passCode);
+      printf("\nThis is the code you requested for  service %s: %llu\n", request.service, response.passCode);
       printf("\n**************************************************************\n");
     }
-    //6 - remove clientFIFO before ending, close client's side of the server
 
+    //6 - remove clientFIFO before ending, close client's side of the server
     close(server);
     unlink(clientFIFO);
 
