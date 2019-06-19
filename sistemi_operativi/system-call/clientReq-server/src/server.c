@@ -45,7 +45,7 @@ unsigned long long int hashIt(char *service, time_t timed){
   stringToHash(service, serviceInt);
 
   return ((atol(serviceInt) + timed) * 3898);
-}
+} 
 
 //#################################################################################################
 

@@ -20,7 +20,7 @@ int main (int argc, char *argv[]) {
     printf("\n\n================================================\n\t\tBenvenuto Utente\n================================================\n\n\n");
     printf("I servizi di sistema offerti sono tre:\n1 - Stampa\n2 - Salva\n3 - Invia\n");
 
-    printf("\n\nPer favore inserire i dati\n\nCodice identificativo:  ");
+    printf("\n\nPer favore inserire i dati\n\nNome utente:  ");
     scanf("%s", request.userCode);
     printf("Servizio richiesto:  ");
     scanf("%s", request.service);
@@ -62,7 +62,7 @@ int main (int argc, char *argv[]) {
 
     //5 - check if there were any error in the service's Request, else show key to user
     if(response.passCode == -1) //service was not well formulated
-      printf("\nThe service you requested is not in our offer, you can choose between:\n-Salva\n-Stampa\n-Invia\n\nYou typed: %s\nYou unfortunately might want to try again.\n\n", request.service);
+      printf("\nThe service you requested is not in our offer, you can choose between:\n-Salva\n-Stampa\n-Invia\n\nYou typed: %s\nYou might want to try again.\n\n", request.service);
     else if(response.passCode == -2) //DB is full
       printf("\nYou might want to try again in 5 minutes or less.\n");
     else{

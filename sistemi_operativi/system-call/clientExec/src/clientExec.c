@@ -7,7 +7,7 @@
 #include <unistd.h>
 
 
-#include "errExit.h"
+#include "errExit.h" 
 #include "semaphore.h"
 #include "shared_memory.h"
 #include "sharedMemAndSemaphoreVariables.h"
@@ -32,8 +32,10 @@ int hashToString(char *string){
   }
   //return code needed for the next switch
   if(strcmp(service, "stampa") == 0) return 1;
-  else if(strcmp(service, "salva") == 0) return 2;
-  else if(strcmp(service, "invia") == 0) return 3;
+   
+  service[5] = ' ';
+  if(strcmp(service, "salva ") == 0) return 2;
+  else if(strcmp(service, "invia ") == 0) return 3;
   return 404;
 }
 
